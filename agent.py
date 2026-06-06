@@ -58,6 +58,8 @@ DATASET = os.environ.get("APPWORLD_DATASET", "dev")          # dev | test_normal
 EXPERIMENT = os.environ.get("APPWORLD_EXPERIMENT", "team_demo")
 MAX_INTERACTIONS = int(os.environ.get("MAX_INTERACTIONS", "30"))
 MAX_TASKS = int(os.environ.get("MAX_TASKS", "0"))            # 0 = all tasks in split
+OBSERVATION_MAX_CHARS = int(os.environ.get("OBSERVATION_MAX_CHARS", "6000"))
+LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))
 
 SYSTEM_PROMPT = """You are an autonomous coding agent operating inside AppWorld.
 You complete the supervisor's task by writing Python code that the environment executes.
@@ -98,6 +100,7 @@ def call_llm(messages: list[dict]) -> str:
         model=MODEL,
         messages=[{"role": "system", "content": SYSTEM_PROMPT}, *messages],
         max_tokens=int(os.environ.get("MAX_TOKENS", "4096")),
+        timeout=LLM_TIMEOUT,
         num_retries=8,   # ride out free-tier rate limits (429) with backoff
     )
     return resp.choices[0].message.content or ""
@@ -115,6 +118,19 @@ def extract_code(text: str) -> str:
         return m.group(1).strip()
 
     return text.removeprefix("```python").removeprefix("```py").removeprefix("```").strip()
+
+
+def truncate_observation(output: object) -> str:
+    text = str(output)
+    if len(text) <= OBSERVATION_MAX_CHARS:
+        return text
+    head = OBSERVATION_MAX_CHARS // 2
+    tail = OBSERVATION_MAX_CHARS - head
+    return (
+        text[:head]
+        + f"\n\n... [truncated {len(text) - OBSERVATION_MAX_CHARS} chars; rerun API with filters/page_limit or print only needed fields] ...\n\n"
+        + text[-tail:]
+    )
 
 
 def solve(world: AppWorld) -> None:
@@ -142,9 +158,10 @@ def solve(world: AppWorld) -> None:
             messages.append({"role": "user", "content": f"Execution output:\n{output}"})
             continue
         output = world.execute(code)
-        print(f"  step {step+1}: ran {len(code)} chars -> {str(output)[:120]!r}")
+        observation = truncate_observation(output)
+        print(f"  step {step+1}: ran {len(code)} chars -> {str(output)[:120]!r}", flush=True)
         messages.append({"role": "assistant", "content": reply})
-        messages.append({"role": "user", "content": f"Execution output:\n{output}"})
+        messages.append({"role": "user", "content": f"Execution output:\n{observation}"})
         if world.task_completed():
             print("  ✓ task_completed")
             return
