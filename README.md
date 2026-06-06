@@ -17,24 +17,21 @@ cd hack_agent_arena
 bash setup.sh                 # installs uv+py3.11, appworld + data, creates .env; verifies
 source .venv/bin/activate
 ```
-Then give the agent a model. **For fair scoring, everyone runs the same model:
-Groq's Llama 3.3 70B — free, fast, no billing, no card.**
+Then give the agent a model. **This repo is configured for OpenRouter by default.**
 
-1. Get a free key at **[console.groq.com](https://console.groq.com)** → sign in with
-   GitHub/Google → **API Keys → Create**.
+1. Get an API key at **[openrouter.ai](https://openrouter.ai)**.
 2. Put it in **`.env`**:
    ```
-   GROQ_API_KEY=...
+   OPENROUTER_API_KEY=...
    ```
-3. That's it — the agent already defaults to `MODEL=groq/llama-3.3-70b-versatile`.
+3. That's it — the agent already defaults to `MODEL=openrouter/meta-llama/llama-3.3-70b-instruct`.
    It runs in the cloud, so any laptop works — no GPU needed.
 
 > The agent runs on [litellm](https://docs.litellm.ai), so `MODEL` is a
-> `provider/model` string. You may use a different backend while **developing**
-> (`gemini/gemini-2.0-flash`, `anthropic/claude-haiku-4-5`, `ollama/llama3.1`, …),
-> but **submitted/scored runs must use `groq/llama-3.3-70b-versatile`** so every
-> team is compared on equal footing. (AppWorld itself needs no key — you can
-> `appworld play` and hand-solve tasks offline.)
+> `provider/model` string. Submitted/scored runs must use
+> `openrouter/meta-llama/llama-3.3-70b-instruct` so every team is compared on
+> equal footing. (AppWorld itself needs no key — you can `appworld play` and
+> hand-solve tasks offline.)
 
 ## 2. Smoke-test the starter agent (2 tasks)
 ```bash

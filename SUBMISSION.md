@@ -9,7 +9,7 @@ right — mismatches slow down or break scoring.
 |---|---|---|
 | **Team name** | lowercase letters/digits/underscores only, no spaces. This is your `<name>`. | `hydra_bolts` |
 | **GitHub repo URL** | public repo (or grant `interface4agi` read access) | `https://github.com/you/agent-arena-hydrabolts` |
-| **Model used** | the `provider/model` you ran | `anthropic/claude-sonnet-4-6` |
+| **Model used** | the `provider/model` you ran | `openrouter/meta-llama/llama-3.3-70b-instruct` |
 | **Self-reported TGC / SGC** | from your own `appworld evaluate` (see below) | `35.0 / 20.0` |
 | **HydraDB used?** | yes/no + one line on how (for the bonus) | `yes — API-doc retrieval + cross-task memory` |
 | **Integrity check** | confirm: general agent, no `task_id` hardcoding | `confirmed` |

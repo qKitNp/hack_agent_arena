@@ -21,7 +21,7 @@ How AppWorld works (the rules your agent plays by):
     Pass `answer` only when the task asks a question; otherwise leave it None.
 
 Run:
-  export ANTHROPIC_API_KEY=sk-...             # or put it in .env
+  export OPENROUTER_API_KEY=sk-or-...         # or put it in .env
   export APPWORLD_EXPERIMENT=team_<yourname>   # your unique team id
   export APPWORLD_DATASET=dev                  # dev while building; switch to the
                                                # official split at submission time
@@ -30,8 +30,9 @@ Run:
 
 import os
 import re
+import ast
 
-try:  # optional: load ANTHROPIC_API_KEY etc. from a local .env
+try:  # optional: load OPENROUTER_API_KEY etc. from a local .env
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
@@ -41,11 +42,18 @@ from appworld import AppWorld, load_task_ids
 import litellm
 
 # ---- config ---------------------------------------------------------------
-# MODEL is litellm's "provider/model" string, so you can point the agent at any
-# backend by setting MODEL + the matching key in .env (see README):
-#   anthropic/claude-haiku-4-5   gemini/gemini-2.0-flash   groq/llama-3.3-70b-versatile
-#   openrouter/...               ollama/llama3.1 (fully local)
-MODEL = os.environ.get("MODEL", "groq/llama-3.3-70b-versatile")
+# MODEL is litellm's "provider/model" string. This repo defaults to OpenRouter.
+DEFAULT_OPENROUTER_MODEL = "openrouter/meta-llama/llama-3.3-70b-instruct"
+
+MODEL_ALIASES = {
+    "openrouter/llama-3.3-70b-instruct": DEFAULT_OPENROUTER_MODEL,
+}
+
+if "MODEL" in os.environ:
+    MODEL = os.environ["MODEL"]
+else:
+    MODEL = os.environ.get("OPENROUTER_MODEL", DEFAULT_OPENROUTER_MODEL)
+MODEL = MODEL_ALIASES.get(MODEL, MODEL)
 DATASET = os.environ.get("APPWORLD_DATASET", "dev")          # dev | test_normal | test_challenge
 EXPERIMENT = os.environ.get("APPWORLD_EXPERIMENT", "team_demo")
 MAX_INTERACTIONS = int(os.environ.get("MAX_INTERACTIONS", "30"))
@@ -65,9 +73,19 @@ RULES:
     print(apis.api_docs.show_app_descriptions())
     print(apis.api_docs.show_api_descriptions(app_name='<app>'))
     print(apis.api_docs.show_api_doc(app_name='<app>', api_name='<api>'))
-- To act on the supervisor's accounts, get credentials and log in:
+- Before calling any app API for the first time, inspect its schema with
+  show_api_doc and use the exact documented parameter names and response fields.
+- To access any supervisor app account, first get that app's credentials:
     print(apis.supervisor.show_account_passwords())
-    # then call that app's login API to get an access_token, and pass it onward.
+    # Use the returned supervisor account id/password for the matching app's
+    # login API before calling protected app APIs.
+    # Save the returned access_token and pass that app-specific token whenever
+    # the API doc requires it.
+    # Always use the exact parameter names from show_api_doc; do not rename
+    # them. For Gmail login, the email goes in username, not email:
+    #     gmail_login = apis.gmail.login(username=<gmail_email>, password=<password>)
+    #     gmail_access_token = gmail_login["access_token"]
+    #     apis.gmail.show_drafts(access_token=<gmail_access_token>)
 - Work in small steps: inspect results before the next action. Never invent API
   names or fields — look them up first.
 - When and ONLY when the task is fully done, call:
@@ -79,15 +97,24 @@ def call_llm(messages: list[dict]) -> str:
     resp = litellm.completion(
         model=MODEL,
         messages=[{"role": "system", "content": SYSTEM_PROMPT}, *messages],
-        max_tokens=1500,
+        max_tokens=int(os.environ.get("MAX_TOKENS", "4096")),
         num_retries=8,   # ride out free-tier rate limits (429) with backoff
     )
     return resp.choices[0].message.content or ""
 
 
 def extract_code(text: str) -> str:
-    m = re.search(r"```(?:python)?\s*\n(.*?)```", text, re.S)
-    return m.group(1).strip() if m else text.strip()
+    text = text.strip()
+    m = re.search(r"```[ \t]*(?:python|py)?[ \t]*(?:\r?\n)?(.*?)```", text, re.S | re.I)
+    if m:
+        return m.group(1).strip()
+
+    # Some models return an opening fence but forget the closing one.
+    m = re.search(r"```[ \t]*(?:python|py)?[ \t]*(?:\r?\n)?(.*)", text, re.S | re.I)
+    if m:
+        return m.group(1).strip()
+
+    return text.removeprefix("```python").removeprefix("```py").removeprefix("```").strip()
 
 
 def solve(world: AppWorld) -> None:
@@ -102,6 +129,18 @@ def solve(world: AppWorld) -> None:
     for step in range(MAX_INTERACTIONS):
         reply = call_llm(messages)
         code = extract_code(reply)
+        try:
+            ast.parse(code)
+        except SyntaxError as e:
+            output = (
+                "Code extraction produced invalid Python before execution. "
+                f"{e.__class__.__name__}: {e.msg} on line {e.lineno}. "
+                "Reply again with exactly one valid Python code block and no prose."
+            )
+            print(f"  step {step+1}: skipped invalid code -> {output!r}")
+            messages.append({"role": "assistant", "content": reply})
+            messages.append({"role": "user", "content": f"Execution output:\n{output}"})
+            continue
         output = world.execute(code)
         print(f"  step {step+1}: ran {len(code)} chars -> {str(output)[:120]!r}")
         messages.append({"role": "assistant", "content": reply})
