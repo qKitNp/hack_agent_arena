@@ -19,11 +19,11 @@ source .venv/bin/activate
 ```
 Then add your LLM key to **`.env`**:
 ```
-ANTHROPIC_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
 ```
 > **No key? You can run a local model.** AppWorld itself needs no API key — you can
 > explore tasks (`appworld play`) and hand-solve them fully offline. Only the agent's
-> "brain" needs a model. The starter uses Anthropic by default, but `call_llm` in
+> "brain" needs a model. The starter uses OpenAI by default, but `call_llm` in
 > `agent.py` is swappable: point it at any provider, including a local model via
 > [Ollama](https://ollama.com) (its OpenAI-compatible endpoint, or `litellm`). Small
 > local models score well below frontier models on AppWorld, but they're great for

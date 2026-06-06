@@ -21,7 +21,7 @@ How AppWorld works (the rules your agent plays by):
     Pass `answer` only when the task asks a question; otherwise leave it None.
 
 Run:
-  export ANTHROPIC_API_KEY=sk-...             # or put it in .env
+  export OPENAI_API_KEY=sk-...                # or put it in .env
   export APPWORLD_EXPERIMENT=team_<yourname>   # your unique team id
   export APPWORLD_DATASET=dev                  # dev while building; switch to the
                                                # official split at submission time
@@ -31,23 +31,24 @@ Run:
 import os
 import re
 
-try:  # optional: load ANTHROPIC_API_KEY etc. from a local .env
+try:  # optional: load OPENAI_API_KEY etc. from a local .env
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
     pass
 
 from appworld import AppWorld, load_task_ids
-import anthropic
+from openai import OpenAI
 
 # ---- config ---------------------------------------------------------------
-MODEL = os.environ.get("MODEL", "claude-opus-4-8")          # or claude-sonnet-4-6
+MODEL = os.environ.get("OPENAI_MODEL", os.environ.get("MODEL", "gpt-5.2"))
 DATASET = os.environ.get("APPWORLD_DATASET", "dev")          # dev | test_normal | test_challenge
 EXPERIMENT = os.environ.get("APPWORLD_EXPERIMENT", "team_demo")
 MAX_INTERACTIONS = int(os.environ.get("MAX_INTERACTIONS", "30"))
 MAX_TASKS = int(os.environ.get("MAX_TASKS", "0"))            # 0 = all tasks in split
+MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "1500"))
 
-client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+client = OpenAI()  # reads OPENAI_API_KEY
 
 SYSTEM_PROMPT = """You are an autonomous coding agent operating inside AppWorld.
 You complete the supervisor's task by writing Python code that the environment executes.
@@ -74,14 +75,23 @@ RULES:
 
 
 def call_llm(messages: list[dict]) -> str:
-    resp = client.messages.create(
+    resp = client.responses.create(
         model=MODEL,
-        system=SYSTEM_PROMPT,
-        messages=messages,
-        max_tokens=1500,
-        temperature=0.0,
+        instructions=SYSTEM_PROMPT,
+        input=messages,
+        max_output_tokens=MAX_OUTPUT_TOKENS,
     )
-    return "".join(b.text for b in resp.content if b.type == "text")
+    if resp.output_text:
+        return resp.output_text
+
+    # Fallback for SDK/object variants that do not expose the convenience field.
+    texts = []
+    for item in getattr(resp, "output", []) or []:
+        for content in getattr(item, "content", []) or []:
+            text = getattr(content, "text", None)
+            if text:
+                texts.append(text)
+    return "".join(texts)
 
 
 def extract_code(text: str) -> str:
