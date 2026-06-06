@@ -17,17 +17,28 @@ cd hack_agent_arena
 bash setup.sh                 # installs uv+py3.11, appworld + data, creates .env; verifies
 source .venv/bin/activate
 ```
-Then add your LLM key to **`.env`**:
+Then give the agent a model. It runs on [**litellm**](https://docs.litellm.ai),
+so you just set `MODEL` (as `provider/model`) and the matching key in **`.env`** —
+use whichever backend you have:
 ```
-ANTHROPIC_API_KEY=sk-...
+ANTHROPIC_API_KEY=...      # MODEL=anthropic/claude-haiku-4-5   (or sonnet/opus)
+GEMINI_API_KEY=...         # MODEL=gemini/gemini-2.0-flash       ← free tier
+GROQ_API_KEY=...           # MODEL=groq/llama-3.3-70b-versatile  ← free tier
+OPENROUTER_API_KEY=...     # MODEL=openrouter/...                ← some free models
 ```
-> **No key? You can run a local model.** AppWorld itself needs no API key — you can
-> explore tasks (`appworld play`) and hand-solve them fully offline. Only the agent's
-> "brain" needs a model. The starter uses Anthropic by default, but `call_llm` in
-> `agent.py` is swappable: point it at any provider, including a local model via
-> [Ollama](https://ollama.com) (its OpenAI-compatible endpoint, or `litellm`). Small
-> local models score well below frontier models on AppWorld, but they're great for
-> building and debugging your agent loop for free.
+**No paid key?** Sign up for a **free** tier in ~2 min, no card needed —
+[Gemini](https://aistudio.google.com), [Groq](https://console.groq.com), or
+[OpenRouter](https://openrouter.ai). The model runs in the cloud, so any laptop
+works — no GPU required.
+
+**Given a key by the organizers?** Set it as `ANTHROPIC_API_KEY`, use
+`MODEL=anthropic/claude-haiku-4-5`, and keep runs small (low `MAX_TASKS`, no
+runaway loops) — it's a small shared budget.
+
+**Want fully offline?** Point `MODEL` at [Ollama](https://ollama.com)
+(`MODEL=ollama/llama3.1`) — optional, and only worth it on a strong machine; small
+local models score well below frontier ones on AppWorld. Note AppWorld itself needs
+no key at all — you can `appworld play` and hand-solve tasks offline.
 
 ## 2. Smoke-test the starter agent (2 tasks)
 ```bash
